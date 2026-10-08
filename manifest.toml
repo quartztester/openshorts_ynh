@@ -4,7 +4,7 @@ id = "openshorts"
 name = "OpenShorts"
 description.en = "Turn long videos into vertical shorts with an OpenAI-compatible or Gemini LLM"
 
-version = "2026.10.07~ynh4"
+version = "2026.10.07~ynh5"
 
 maintainers = []
 

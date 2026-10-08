@@ -64,6 +64,15 @@ chown -R "$app:$app" "$install_dir/venv"
 # NODE BUILD (dashboard static + render service)
 #=================================================
 
+# Upload limit: upstream hardcodes MAX_FILE_SIZE_MB=2048 and a stale "500MB"
+# UI label. Raise the backend cap to 4 GB and fix the label to match (nginx
+# client_max_body_size in conf/nginx.conf matches). NB: if the domain sits
+# behind Cloudflare's proxy, their plan-level body cap applies first (Free:
+# 100MB); grey-cloud the record for big uploads.
+sed -i "s/^MAX_FILE_SIZE_MB = 2048.*/MAX_FILE_SIZE_MB = 4096  # 4GB limit (package patch)/" "$install_dir/app.py"
+sed -i "s/MP4, MOV up to 500MB/MP4, MOV up to 4GB/" "$install_dir/dashboard/src/components/MediaInput.jsx"
+sed -i "s/Keep files under 500\./Keep files under 4GB./" "$install_dir/dashboard/src/components/ClipTutorial.jsx"
+
 ynh_script_progression "Building the dashboard (npm ci + vite build)..."
 # npm ci runs as the app user with HOME in data_dir (npm cache must be
 # writable). --ignore-scripts skips optional postinstall downloads not needed
