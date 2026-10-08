@@ -1,5 +1,7 @@
 # OpenShorts for YunoHost
 
+<img src="https://raw.githubusercontent.com/quartztester/openshorts_ynh/main/doc/logo.png" alt="Logo of OpenShorts" title="OpenShorts" style="max-height:40px;" />&nbsp;&nbsp;<img src="https://upload.wikimedia.org/wikipedia/commons/6/61/YunoHost_Logo.png" alt="YunoHost logo" title="YunoHost" style="max-height:40px;" />
+
 ![Version](https://img.shields.io/badge/helper-v2.1-green)
 
 Turn long-form videos (podcasts, webinars, interviews) into vertical 9:16
