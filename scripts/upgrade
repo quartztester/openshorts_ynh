@@ -102,6 +102,14 @@ chown "$app:$app" "$install_dir/env"
 
 ynh_config_add_systemd
 ynh_config_add_systemd --service="$app-render" --template=systemd-render.service
+# nginx (www-data) serves dashboard/dist directly: the install_dir itself is
+# 0750 (app-only) by YunoHost convention, so grant *traverse* (o+x, not o+r)
+# on the path to dist and make dist world-readable. Without this, try_files
+# silently falls through to the backend and the portal tile shows
+# {"detail":"Not Found"}.
+chmod o+x "$install_dir" "$install_dir/dashboard" 2>/dev/null || true
+chmod -R a+rX "$install_dir/dashboard/dist" 2>/dev/null || true
+
 ynh_config_add_nginx
 
 # Whisper model may have changed: pre-download if absent.
