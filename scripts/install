@@ -125,6 +125,13 @@ ynh_script_progression "Starting OpenShorts services..."
 ynh_systemctl --service="$app-render" --action=start --log_path=systemd --wait_until="Listening on port"
 ynh_systemctl --service="$app" --action=start --log_path=systemd --wait_until="Uvicorn running"
 
+# Tile logo for the SSO portal + admin UI (supported override for
+# non-catalog apps: <app>.png in the applogos dir).
+if [ -f "$YNH_APP_BASEDIR/doc/logo.png" ]; then
+    cp "$YNH_APP_BASEDIR/doc/logo.png" "/usr/share/yunohost/applogos/$app.png"
+    yunohost user permission update "$app.main" --logo "/usr/share/yunohost/applogos/$app.png" || true
+fi
+
 #=================================================
 # END OF SCRIPT
 #=================================================
