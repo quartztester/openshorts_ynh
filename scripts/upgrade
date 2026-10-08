@@ -68,6 +68,11 @@ chown -R "$app:$app" "$install_dir/venv"
 #=================================================
 
 ynh_script_progression "Rebuilding the dashboard..."
+# [local box patch] with a local OpenAI-compatible LLM configured, clipping
+# needs no Gemini/Upload-Post key: only block processing when no LLM AND no
+# gemini key. (Upload-Post remains available in Settings for auto-posting.)
+sed -i "s/const keysMissing = !billingEnabled \&\& (!geminiOk || !uploadPostKey);/const keysMissing = !billingEnabled \&\& !geminiOk;/" "$install_dir/dashboard/src/App.jsx"
+
 # Upload limit: upstream hardcodes MAX_FILE_SIZE_MB=2048 and a stale "500MB"
 # UI label. Raise the backend cap to 4 GB and fix the label to match (nginx
 # client_max_body_size in conf/nginx.conf matches). NB: if the domain sits
