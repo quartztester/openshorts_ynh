@@ -1,0 +1,99 @@
+packaging_format = 2
+
+id = "openshorts"
+name = "OpenShorts"
+description.en = "Turn long videos into vertical shorts with an OpenAI-compatible or Gemini LLM"
+
+version = "2026.10.07~ynh1"
+
+maintainers = []
+
+[upstream]
+license = "MIT"
+code = "https://github.com/mutonby/openshorts"
+admindoc = "https://github.com/mutonby/openshorts#readme"
+
+[integration]
+yunohost = ">= 12.0"
+helpers_version = "2.1"
+# mediapipe publishes no manylinux aarch64 wheel for the pinned 0.10.14,
+# so the venv build fails on arm64 until upstream bumps it.
+architectures = ["amd64"]
+multi_instance = true
+ldap = "not_relevant"
+sso = "not_relevant"
+disk = "6G"
+ram.build = "3G"
+ram.runtime = "2G"
+
+[install]
+    [install.domain]
+    type = "domain"
+
+    [install.path]
+    type = "path"
+    default = "/"
+
+    [install.init_main_permission]
+    type = "group"
+    # The self-hosted app has no accounts of its own; YunoHost SSO is the gate.
+    default = "all_users"
+
+    [install.llm_base_url]
+    ask.en = "OpenAI-compatible LLM base URL (optional)"
+    help.en = "Any server speaking POST /v1/chat/completions (Ollama, vLLM, OpenRouter...). With this set, the viral-moment picker runs on your model and a Gemini key is optional."
+    type = "string"
+    default = ""
+
+    [install.llm_model]
+    ask.en = "Model name on that server (optional)"
+    type = "string"
+    default = ""
+
+    [install.llm_api_key]
+    ask.en = "API key for the LLM server (optional)"
+    type = "password"
+    optional = true
+
+    [install.gemini_api_key]
+    ask.en = "Google Gemini API key (optional)"
+    help.en = "Needed for layout picking, on-screen-content detection and silent videos when no Gemini-less path applies."
+    type = "password"
+    optional = true
+
+    [install.whisper_model]
+    ask.en = "Whisper transcription model size"
+    help.en = "faster-whisper size: tiny, base, small (default), medium, large-v3. Bigger = better and slower; 'small' is the upstream default and fits 1 GB."
+    type = "string"
+    default = "small"
+
+[resources]
+    [resources.system_user]
+
+    [resources.install_dir]
+
+    [resources.data_dir]
+    # Per-job output/, uploads/ and model caches (Whisper, Remotion browser).
+
+    [resources.permissions]
+        main.url = "/"
+        # SSO must not inject basic creds: the app has no LDAP and reads no
+        # Authorization header for its own media paths.
+        main.auth_header = false
+        main.show_tile = true
+
+    [resources.ports]
+    main.default = 24682
+    render.default = 3101
+
+    [resources.apt]
+        packages = "ffmpeg, python3-venv, fontconfig, fonts-liberation, fonts-noto-core, fonts-noto-color-emoji"
+
+    [resources.nodejs]
+        version = "22"
+
+    [resources.sources.main]
+        # Pinned to a tested commit (upstream has no tags yet); bump URL,
+        # sha256 and manifest version together when updating.
+        url = "https://github.com/mutonby/openshorts/archive/1ceb57d77d0429a8f526797287b3529757b31055.tar.gz"
+        sha256 = "7f6a740aab7b89b620d0ae67b1844b40c1703c887decd9f4dd598b10308beeeb"

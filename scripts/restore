@@ -1,0 +1,92 @@
+#!/bin/bash
+
+#=================================================
+# IMPORT GENERIC HELPERS
+#=================================================
+
+source ../settings/scripts/_common.sh
+source /usr/share/yunohost/helpers
+
+#=================================================
+# INITIALIZE AND RESTORE FILES
+#=================================================
+
+ynh_script_progression "Restoring files..."
+
+domain=$(ynh_app_setting_get --key=domain)
+ynh_restore "$data_dir"
+mkdir -p "$data_dir/output" "$data_dir/uploads" "$data_dir/.cache"
+chmod 750 "$data_dir"
+
+# env + units come back from the archive; the install tree does not (it is
+# rebuilt below), so restore env into place *after* the source lands.
+
+#=================================================
+# REINSTALL SOURCE, VENV AND NODE BUILDS
+#=================================================
+
+ynh_script_progression "Reinstalling the app tree (source, venv, npm builds)..."
+
+ynh_setup_source --dest_dir="$install_dir"
+
+mkdir -p "$install_dir/dashboard/dist"
+ln -sfn "$data_dir/output" "$install_dir/output"
+ln -sfn "$data_dir/uploads" "$install_dir/uploads"
+chown -R "$app:$app" "$install_dir" "$data_dir"
+
+python3 -m venv "$install_dir/venv"
+"$install_dir/venv/bin/pip" install --no-cache-dir --upgrade pip
+"$install_dir/venv/bin/pip" install --no-cache-dir \
+	--index-url https://download.pytorch.org/whl/cpu \
+	"torch==$(grep -oP '^torch==\K.*' "$install_dir/requirements.txt")" \
+	"torchvision==$(grep -oP '^torchvision==\K.*' "$install_dir/requirements.txt")"
+grep -vE '^torch(vision)?==' "$install_dir/requirements.txt" > "$install_dir/requirements-cpu.txt"
+"$install_dir/venv/bin/pip" install --no-cache-dir -r "$install_dir/requirements-cpu.txt"
+rm -f "$install_dir/requirements-cpu.txt"
+chown -R "$app:$app" "$install_dir/venv"
+
+ynh_exec_as_app env HOME="$data_dir" VITE_API_URL="" \
+	npm --prefix "$install_dir/dashboard" ci --ignore-scripts --no-audit --no-fund
+ynh_exec_as_app env HOME="$data_dir" \
+	npm --prefix "$install_dir/dashboard" run build
+# Upstream's render-service lockfile pins an older Remotion than the un-locked
+# remotion/ project resolves to; the skew breaks the startup bundle on new
+# exports (Error: export 'Interactive' ... was not found in 'remotion').
+# Install remotion/ FIRST, then pin render-service to the exact version it got.
+ynh_exec_as_app env HOME="$data_dir" \
+	npm --prefix "$install_dir/remotion" install --no-audit --no-fund
+remotion_version=$(node -p "require('$install_dir/remotion/node_modules/remotion/package.json').version")
+ynh_exec_as_app env HOME="$data_dir" \
+	npm --prefix "$install_dir/render-service" install --no-audit --no-fund \
+	"remotion@$remotion_version" "@remotion/bundler@$remotion_version" "@remotion/renderer@$remotion_version"
+ynh_exec_as_app env HOME="$data_dir" \
+	npm --prefix "$install_dir/remotion" install --no-audit --no-fund
+ynh_exec_as_app env HOME="$data_dir" \
+	npm --prefix "$install_dir/render-service" run build
+chown -R "$app:$app" "$install_dir"
+
+# The archived env was taken from a possibly-older unit era; restore it on
+# top of the fresh source (it holds the keys), then re-render units from the
+# *current* package templates so a restore onto a fresh machine gets units.
+ynh_restore "$install_dir/env" || true
+ynh_config_add_systemd
+ynh_config_add_systemd --service="$app-render" --template=systemd-render.service
+
+if [ -d "/etc/nginx/conf.d/$domain.d" ]; then
+	ynh_config_add_nginx
+fi
+
+#=================================================
+# START SERVICES
+#=================================================
+
+ynh_script_progression "Restarting OpenShorts services..."
+
+ynh_systemctl --service="$app-render" --action=start --log_path=systemd --wait_until="Listening on port"
+ynh_systemctl --service="$app" --action=start --log_path=systemd --wait_until="Uvicorn running"
+
+#=================================================
+# END OF SCRIPT
+#=================================================
+
+ynh_script_progression "Restoration of $app completed"

@@ -1,0 +1,23 @@
+#!/bin/bash
+
+#=================================================
+# IMPORT GENERIC HELPERS
+#=================================================
+
+source ../settings/scripts/_common.sh
+source /usr/share/yunohost/helpers
+
+#=================================================
+# INITIALIZE AND STORE FILES TO BACK UP
+#=================================================
+
+# Jobs (transcripts, clips), uploads, model caches, npm cache — the only
+# irreducible state. venv/ and node_modules are rebuilt by the scripts.
+ynh_backup "$data_dir"
+
+# Per-instance env (LLM/Gemini keys) + both systemd units.
+ynh_backup "$install_dir/env"
+ynh_backup "/etc/systemd/system/$app.service"
+ynh_backup "/etc/systemd/system/$app-render.service"
+
+ynh_print_info "Backup of $app prepared"

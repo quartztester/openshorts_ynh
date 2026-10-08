@@ -1,0 +1,23 @@
+# OpenShorts per-instance environment (rendered by ynh_config_add).
+# Secrets: this file is chmod 600, user __APP__ only.
+
+# --- moment-picker LLM (OpenAI-compatible; empty = fall back to Gemini) ---
+LLM_BASE_URL=__LLM_BASE_URL__
+LLM_MODEL=__LLM_MODEL__
+LLM_API_KEY=__LLM_API_KEY__
+GEMINI_API_KEY=__GEMINI_API_KEY__
+
+# --- transcription (CPU box: int8 keeps the small model near 1 GB RSS) ---
+WHISPER_MODEL=__WHISPER_MODEL__
+WHISPER_DEVICE=cpu
+WHISPER_COMPUTE=int8
+
+# --- keep every model/weights cache inside the backed-up data_dir ---
+HF_HOME=__DATA_DIR__/.cache/huggingface
+HOME=__DATA_DIR__
+
+# --- render service (loopback; nginx never exposes it) ---
+RENDER_SERVICE_URL=http://127.0.0.1:__PORT_RENDER__
+
+# Self-hosted BYOK mode: never set BILLING_ENABLED.
+FFMPEG_ENCODER=x264

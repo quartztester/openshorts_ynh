@@ -1,0 +1,34 @@
+[Unit]
+Description=OpenShorts Remotion render service (__APP__)
+After=network.target
+
+[Service]
+Type=simple
+User=__APP__
+Group=__APP__
+WorkingDirectory=__INSTALL_DIR__/render-service
+# Bundling the Remotion project at startup takes well over the default
+# 90 s start timeout on an HDD box.
+TimeoutStartSec=600
+Environment=PORT=__PORT_RENDER__
+Environment=OUTPUT_DIR=__DATA_DIR__/output
+Environment=REMOTION_BUNDLE_PATH=__INSTALL_DIR__/remotion
+# Remotion caches its headless browser under HOME (and bundles webpack
+# cache under the project); keep it in data_dir so restores don't refetch.
+Environment=HOME=__DATA_DIR__
+ExecStart=__NODEJS_DIR__/node __INSTALL_DIR__/render-service/dist/server.js
+ NoNewPrivileges=yes
+ PrivateTmp=yes
+ ProtectSystem=full
+ # NB: no ProtectHome — HOME=__DATA_DIR__ lives under /home/yunohost.app
+ # (Remotion headless-browser cache), and no PrivateDevices — headless
+ # Chromium wants the real /dev/shm.
+ ProtectKernelTunables=yes
+ ProtectControlGroups=yes
+ RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ LockPersonality=yes
+ Restart=on-failure
+ RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

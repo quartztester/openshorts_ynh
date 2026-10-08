@@ -1,0 +1,131 @@
+#!/bin/bash
+
+#=================================================
+# IMPORT GENERIC HELPERS
+#=================================================
+
+source _common.sh
+source /usr/share/yunohost/helpers
+
+#=================================================
+# STOP SERVICES (node_modules and venv are about to be replaced)
+#=================================================
+
+ynh_systemctl --service="$app" --action=stop
+ynh_systemctl --service="$app-render" --action=stop
+
+ynh_app_setting_set --key=llm_base_url --value="${llm_base_url:-}"
+ynh_app_setting_set --key=llm_model --value="${llm_model:-}"
+ynh_app_setting_set --key=llm_api_key --value="${llm_api_key:-}"
+ynh_app_setting_set --key=gemini_api_key --value="${gemini_api_key:-}"
+ynh_app_setting_set --key=whisper_model --value="${whisper_model:-small}"
+
+#=================================================
+# RELOAD PATHS FROM THE CURRENT INSTALL
+#=================================================
+
+final_path=$(ynh_app_setting_get --key=final_path)
+domain=$(ynh_app_setting_get --key=domain)
+
+#=================================================
+# DOWNLOAD, CHECK AND UNPACK SOURCE
+#=================================================
+
+ynh_script_progression "Upgrading source files..."
+
+# venv/, node_modules trees and the built dashboard are reproducible, not
+# user data: wipe and rebuild them, keep everything else (--keep).
+ynh_setup_source --dest_dir="$install_dir" --keep="venv dashboard/node_modules render-service/node_modules remotion/node_modules env output uploads requirements-cpu.txt"
+
+# Symlinks into data_dir may not survive the source swap; make them absolute.
+mkdir -p "$data_dir/output" "$data_dir/uploads" "$data_dir/.cache"
+chmod 750 "$data_dir"
+ln -sfn "$data_dir/output" "$install_dir/output"
+ln -sfn "$data_dir/uploads" "$install_dir/uploads"
+chown -R "$app:$app" "$install_dir" "$data_dir"
+
+#=================================================
+# PYTHON VENV
+#=================================================
+
+if [ ! -x "$install_dir/venv/bin/uvicorn" ]; then
+	ynh_script_progression "Recreating the Python virtualenv (new install layout)..."
+	python3 -m venv "$install_dir/venv"
+	"$install_dir/venv/bin/pip" install --no-cache-dir --upgrade pip
+	"$install_dir/venv/bin/pip" install --no-cache-dir \
+		--index-url https://download.pytorch.org/whl/cpu \
+		"torch==$(grep -oP '^torch==\K.*' "$install_dir/requirements.txt")" \
+		"torchvision==$(grep -oP '^torchvision==\K.*' "$install_dir/requirements.txt")"
+fi
+# Reinstall the rest unconditionally: requirements.txt may have moved.
+grep -vE '^torch(vision)?==' "$install_dir/requirements.txt" > "$install_dir/requirements-cpu.txt"
+"$install_dir/venv/bin/pip" install --no-cache-dir -r "$install_dir/requirements-cpu.txt"
+rm -f "$install_dir/requirements-cpu.txt"
+chown -R "$app:$app" "$install_dir/venv"
+
+#=================================================
+# NODE BUILD
+#=================================================
+
+ynh_script_progression "Rebuilding the dashboard..."
+ynh_exec_as_app env HOME="$data_dir" VITE_API_URL="" \
+	npm --prefix "$install_dir/dashboard" ci --ignore-scripts --no-audit --no-fund
+ynh_exec_as_app env HOME="$data_dir" \
+	npm --prefix "$install_dir/dashboard" run build
+
+ynh_script_progression "Rebuilding the Remotion render service..."
+# Upstream's render-service lockfile pins an older Remotion than the un-locked
+# remotion/ project resolves to; the skew breaks the startup bundle on new
+# exports (Error: export 'Interactive' ... was not found in 'remotion').
+# Install remotion/ FIRST, then pin render-service to the exact version it got.
+ynh_exec_as_app env HOME="$data_dir" \
+	npm --prefix "$install_dir/remotion" install --no-audit --no-fund
+remotion_version=$(node -p "require('$install_dir/remotion/node_modules/remotion/package.json').version")
+ynh_exec_as_app env HOME="$data_dir" \
+	npm --prefix "$install_dir/render-service" install --no-audit --no-fund \
+	"remotion@$remotion_version" "@remotion/bundler@$remotion_version" "@remotion/renderer@$remotion_version"
+ynh_exec_as_app env HOME="$data_dir" \
+	npm --prefix "$install_dir/remotion" install --no-audit --no-fund
+ynh_exec_as_app env HOME="$data_dir" \
+	npm --prefix "$install_dir/render-service" run build
+chown -R "$app:$app" "$install_dir"
+
+#=================================================
+# CONFIG (re-render from the new package's templates)
+#=================================================
+
+ynh_script_progression "Adding system configuration..."
+
+ynh_config_add --template=env --destination="$install_dir/env"
+chmod 600 "$install_dir/env"
+chown "$app:$app" "$install_dir/env"
+
+ynh_config_add_systemd
+ynh_config_add_systemd --service="$app-render" --template=systemd-render.service
+ynh_config_add_nginx
+
+# Whisper model may have changed: pre-download if absent.
+if ! ls "$data_dir"/.cache/huggingface/hub/models--Systran--faster-whisper-"$whisper_model"* > /dev/null 2>&1; then
+	ynh_script_progression "Pre-downloading the $whisper_model Whisper model..."
+	cd "$install_dir"
+	ynh_exec_as_app env HF_HOME="$data_dir/.cache/huggingface" \
+		"$install_dir/venv/bin/python" -c "from faster_whisper import WhisperModel; WhisperModel('$whisper_model', device='cpu', compute_type='int8')"
+	cd /
+fi
+
+#=================================================
+# START SERVICES
+#=================================================
+
+ynh_script_progression "Restarting OpenShorts services..."
+
+ynh_systemctl --service="$app-render" --action=start --log_path=systemd --wait_until="Listening on port"
+ynh_systemctl --service="$app" --action=start --log_path=systemd --wait_until="Uvicorn running"
+
+ynh_app_setting_set --key=final_path --value="$final_path"
+
+#=================================================
+# END OF SCRIPT
+#=================================================
+
+ynh_script_progression "Upgrade of $app completed"

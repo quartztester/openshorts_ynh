@@ -1,0 +1,132 @@
+#!/bin/bash
+
+#=================================================
+# IMPORT GENERIC HELPERS
+#=================================================
+
+source _common.sh
+source /usr/share/yunohost/helpers
+
+# OpenShorts' dashboard and backend speak absolute paths (/api, /videos...),
+# so a subpath install half-works. Refuse it here, the path everyone takes.
+if [ "${path:-/}" != "/" ]; then
+	ynh_die "OpenShorts must be installed at the root of a domain (path=/): the app uses absolute URLs internally."
+fi
+
+#=================================================
+# INITIALIZE SETTINGS
+#=================================================
+
+ynh_app_setting_set --key=llm_base_url --value="${llm_base_url:-}"
+ynh_app_setting_set --key=llm_model --value="${llm_model:-}"
+ynh_app_setting_set --key=llm_api_key --value="${llm_api_key:-}"
+ynh_app_setting_set --key=gemini_api_key --value="${gemini_api_key:-}"
+ynh_app_setting_set --key=whisper_model --value="${whisper_model:-small}"
+
+#=================================================
+# DOWNLOAD, CHECK AND UNPACK SOURCE
+#=================================================
+
+ynh_script_progression "Setting up source files..."
+
+ynh_setup_source --dest_dir="$install_dir"
+
+mkdir -p "$data_dir/output" "$data_dir/uploads" "$data_dir/.cache"
+chmod 750 "$data_dir"
+chown -R "$app:$app" "$install_dir" "$data_dir"
+
+# The app writes uploads/ and output/ relative to its cwd (= install_dir,
+# where uvicorn's main.py lives). Symlink them into the backed-up data_dir.
+ln -sfn "$data_dir/output" "$install_dir/output"
+ln -sfn "$data_dir/uploads" "$install_dir/uploads"
+chown -h "$app:$app" "$install_dir/output" "$install_dir/uploads"
+
+#=================================================
+# APP RUNNING SCRIPTS (Python venv)
+#=================================================
+
+ynh_script_progression "Creating the Python virtualenv (this takes a few minutes)..."
+
+python3 -m venv "$install_dir/venv"
+# CPU-only torch first: the default PyPI wheel drags ~2 GB of CUDA libraries
+# this box will never use. Then the rest of the pins from PyPI.
+"$install_dir/venv/bin/pip" install --no-cache-dir --upgrade pip
+"$install_dir/venv/bin/pip" install --no-cache-dir \
+	--index-url https://download.pytorch.org/whl/cpu \
+	"torch==$(grep -oP '^torch==\K.*' "$install_dir/requirements.txt")" \
+	"torchvision==$(grep -oP '^torchvision==\K.*' "$install_dir/requirements.txt")"
+grep -vE '^torch(vision)?==' "$install_dir/requirements.txt" > "$install_dir/requirements-cpu.txt"
+"$install_dir/venv/bin/pip" install --no-cache-dir -r "$install_dir/requirements-cpu.txt"
+rm -f "$install_dir/requirements-cpu.txt"
+chown -R "$app:$app" "$install_dir/venv"
+
+#=================================================
+# NODE BUILD (dashboard static + render service)
+#=================================================
+
+ynh_script_progression "Building the dashboard (npm ci + vite build)..."
+# npm ci runs as the app user with HOME in data_dir (npm cache must be
+# writable). --ignore-scripts skips optional postinstall downloads not needed
+# for the static build; VITE_API_URL='' bakes same-origin relative API calls.
+ynh_exec_as_app env HOME="$data_dir" VITE_API_URL="" \
+	npm --prefix "$install_dir/dashboard" ci --ignore-scripts --no-audit --no-fund
+ynh_exec_as_app env HOME="$data_dir" \
+	npm --prefix "$install_dir/dashboard" run build
+
+ynh_script_progression "Building the Remotion render service..."
+# Upstream's render-service lockfile pins an older Remotion than the un-locked
+# remotion/ project resolves to; the skew breaks the startup bundle on new
+# exports (Error: export 'Interactive' ... was not found in 'remotion').
+# Install remotion/ FIRST, then pin render-service to the exact version it got.
+ynh_exec_as_app env HOME="$data_dir" \
+	npm --prefix "$install_dir/remotion" install --no-audit --no-fund
+remotion_version=$(node -p "require('$install_dir/remotion/node_modules/remotion/package.json').version")
+ynh_exec_as_app env HOME="$data_dir" \
+	npm --prefix "$install_dir/render-service" install --no-audit --no-fund \
+	"remotion@$remotion_version" "@remotion/bundler@$remotion_version" "@remotion/renderer@$remotion_version"
+ynh_exec_as_app env HOME="$data_dir" \
+	npm --prefix "$install_dir/render-service" run build
+chown -R "$app:$app" "$install_dir"
+
+#=================================================
+# MODEL PRE-DOWNLOAD (Whisper + YOLO)
+#=================================================
+
+ynh_script_progression "Pre-downloading the $whisper_model Whisper model and YOLO weights..."
+# Fetched at job time otherwise, where a slow mirror looks like a hung job.
+# HF_HOME keeps the model in data_dir so upgrades and restores don't refetch.
+cd "$install_dir"
+ynh_exec_as_app env HF_HOME="$data_dir/.cache/huggingface" \
+	"$install_dir/venv/bin/python" -c "from faster_whisper import WhisperModel; WhisperModel('$whisper_model', device='cpu', compute_type='int8')"
+ynh_exec_as_app env HF_HOME="$data_dir/.cache/huggingface" \
+	"$install_dir/venv/bin/python" -c "from ultralytics import YOLO; YOLO('yolov8n.pt')"
+cd /
+
+#=================================================
+# SYSTEM CONFIGURATION
+#=================================================
+
+ynh_script_progression "Adding app configuration..."
+
+ynh_config_add --template=env --destination="$install_dir/env"
+chmod 600 "$install_dir/env"
+chown "$app:$app" "$install_dir/env"
+
+ynh_config_add_systemd
+ynh_config_add_systemd --service="$app-render" --template=systemd-render.service
+ynh_config_add_nginx
+
+#=================================================
+# START SYSTEMD SERVICE
+#=================================================
+
+ynh_script_progression "Starting OpenShorts services..."
+
+ynh_systemctl --service="$app-render" --action=start --log_path=systemd --wait_until="Listening on port"
+ynh_systemctl --service="$app" --action=start --log_path=systemd --wait_until="Uvicorn running"
+
+#=================================================
+# END OF SCRIPT
+#=================================================
+
+ynh_script_progression "Installation of $app completed"

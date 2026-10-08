@@ -1,0 +1,39 @@
+#!/bin/bash
+
+#=================================================
+# IMPORT GENERIC HELPERS
+#=================================================
+
+source _common.sh
+source /usr/share/yunohost/helpers
+
+#=================================================
+# INITIALIZE VARIABLES
+#=================================================
+
+final_path=$(ynh_app_setting_get --key=final_path)
+domain=$(ynh_app_setting_get --key=domain)
+
+if [ "$final_path" != "/" ]; then
+	ynh_die "OpenShorts must live at the root of a domain; change-url to a domain root only."
+fi
+
+#=================================================
+# NGINX CONFIGURATION
+#=================================================
+
+# Only the vhost (domain) and its default.conf change; the site include is
+# regenerated from the template with the new domain context.
+ynh_config_add_nginx
+
+#=================================================
+# RESTART SYSTEMD SERVICE
+#=================================================
+
+ynh_systemctl --service="$app" --action=restart
+
+#=================================================
+# END OF SCRIPT
+#=================================================
+
+ynh_script_progression "Change of URL for $app completed"
