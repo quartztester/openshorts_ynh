@@ -59,3 +59,18 @@ YunoHost SSO, so install with a permission group you belong to.
 
 Troubleshooting, ports table, and update/backup behavior: shown in the
 YunoHost admin under the app's **Documentation** tab.
+
+## Local patches (vs. upstream)
+
+This package is not vanilla upstream; it carries deliberate deltas that
+survive upgrades. When bumping the pinned source commit, re-verify each:
+
+- `patches/main.patch` — long-audio transcription is span-chunked at VAD
+  silence gaps (`TRANSCRIBE_SPAN_MINUTES`, default 20). Upstream computes the
+  log-Mel spectrogram of the whole file in one STFT call: multi-hour uploads
+  peaked at 7–9 GB and the kernel OOM killer killed the service (once taking
+  MariaDB with it). Paired with `MemoryMax=10G` in the systemd unit.
+- `scripts/install`/`scripts/upgrade` sed patches — 4 GB upload cap
+  (backend + UI label + nginx body size; remember Cloudflare's plan cap
+  applies first when proxied), and the key-gate fix so a local
+  OpenAI-compatible LLM needs no Gemini/Upload-Post key.

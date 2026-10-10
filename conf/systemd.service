@@ -12,6 +12,14 @@ EnvironmentFile=__INSTALL_DIR__/env
 # stop generous bounds.
 TimeoutStartSec=300
 TimeoutStopSec=60
+# OOM guard: faster-whisper whole-audio feature extraction could balloon a
+# job to 7-9 GB on multi-hour uploads and the kernel's global OOM killer
+# took down neighboring services (once MariaDB) with it. The bundled patch
+# span-chunks long audio (patches/main.patch), keeping a job ~2.5 GB; this
+# cap makes any future regression kill the job, not the server.
+MemoryMax=10G
+MemoryHigh=7G
+MemorySwapMax=4G
 ExecStart=__INSTALL_DIR__/venv/bin/uvicorn app:app --host 127.0.0.1 --port __PORT__ --proxy-headers --forwarded-allow-ips "*" --timeout-graceful-shutdown 15
  NoNewPrivileges=yes
  PrivateTmp=yes

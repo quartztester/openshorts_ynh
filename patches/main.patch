@@ -1,0 +1,165 @@
+diff --git a/transcribe_backends.py b/transcribe_backends.py
+index 4d7ae16..23d6ebd 100644
+--- a/transcribe_backends.py
++++ b/transcribe_backends.py
+@@ -202,6 +202,91 @@ def _run_whisper_once(media_path, **params):
+         return materialized, info
+ 
+ 
++# --- long-audio chunking (OOM fix, 09-oct-2026) ------------------------------
++# faster-whisper's classic WhisperModel.transcribe() computes the log-Mel
++# spectrogram of the WHOLE VAD-filtered audio in one call: for a 2h28m source
++# that materialises several multi-GB STFT/mel temporaries at once (windowed
++# frames, complex FFT, magnitudes, mel matmul) on top of the decoded audio
++# and its np.concatenate copy, peaking at 7-9 GB — the kernel OOM-killed
++# openshorts.service on exactly that (10 kills in 14 days; MariaDB was once
++# collateral). Upstream batches VAD but not the feature extraction on this
++# path, so the app slices long sources itself: cut at VAD silence gaps into
++# spans of at most TRANSCRIBE_SPAN_MINUTES, transcribe each span with the
++# same params, shift the timestamps by the span offset, and concatenate.
++# Output contract is unchanged; memory stays flat regardless of duration.
++TRANSCRIBE_SPAN_MINUTES = int(os.environ.get("TRANSCRIBE_SPAN_MINUTES", "20"))
++# Reuse the VAD the model itself would run: cutting at silence boundaries
++# means every span starts on speech, so no word is ever split mid-utterance.
++_SPAN_MAX_SECONDS = TRANSCRIBE_SPAN_MINUTES * 60
++
++
++def _transcribe_spans(audio, model, **params):
++    """Whisper segments for a long 1D float32 16 kHz array, span by span.
++
++    Returns (segments, language). Timestamps are shifted to be absolute
++    (whole-file) so downstream consumers see one continuous transcript.
++    """
++    import numpy as np
++    from faster_whisper.vad import get_speech_timestamps, VadOptions
++
++    total = float(audio.shape[0]) / 16000.0
++    if total <= _SPAN_MAX_SECONDS:
++        segments, info = model.transcribe(audio, **params)
++        return list(segments), getattr(info, "language", None)
++
++    # Speech spans (sample indices). The same Silero VAD the model would run
++    # internally, run once here to find cut points instead of filtering.
++    speech = get_speech_timestamps(audio, VadOptions())
++    if not speech:
++        segments, info = model.transcribe(audio, **params)
++        return list(segments), getattr(info, "language", None)
++
++    # Greedy packer: accumulate speech chunks into a span until it would
++    # exceed the cap, then close the span at the chunk boundary (a silence
++    # gap), never inside an utterance.
++    rate = 16000
++    spans = []          # list of (start_sample, end_sample)
++    cur_start, cur_end = None, None
++    for ch in speech:
++        s, e = ch["start"], ch["end"]
++        if cur_start is None:
++            cur_start, cur_end = s, e
++        elif (e - cur_start) / rate > _SPAN_MAX_SECONDS:
++            spans.append((cur_start, cur_end))
++            cur_start, cur_end = s, e
++        else:
++            cur_end = e
++    if cur_start is not None:
++        spans.append((cur_start, cur_end))
++
++    all_segments = []
++    language = None
++    progress = _TranscribeProgress(total)
++    for span_start, span_end in spans:
++        span_audio = audio[span_start:span_end]
++        span_params = dict(params, clip_timestamps="0")
++        # Pin the language after the first span: the whole-file path detects
++        # it once (first 30 s), so a later span heavy in foreign speech must
++        # not silently switch languages mid-transcript.
++        if language is not None:
++            span_params["language"] = language
++        segments, info = model.transcribe(span_audio, **span_params)
++        if language is None:
++            language = getattr(info, "language", None)
++        offset = span_start / rate
++        for segment in segments:
++            segment.start += offset
++            segment.end += offset
++            if segment.words:
++                for w in segment.words:
++                    w.start += offset
++                    w.end += offset
++            all_segments.append(segment)
++            progress.update(segment.end)
++    progress.update(progress.total)
++    return all_segments, language
++
++
+ def run_whisper_transcription(media_path, **params):
+     """Transcribe and FULLY materialize the segments inside the GPU gate.
+ 
+@@ -212,10 +297,15 @@ def run_whisper_transcription(media_path, **params):
+     A CUDA failure (model load OOM or mid-decode) retries once on CPU and
+     pins CPU for the rest of the process — the GPU is shared with other
+     models, so a job must degrade instead of dying when VRAM runs out.
++
++    Long sources (multi-hour uploads) are sliced into silence-aligned spans
++    of TRANSCRIBE_SPAN_MINUTES before transcription: faster-whisper's
++    single-shot feature extraction over the whole audio is what OOM-killed
++    this service (see _transcribe_spans).
+     """
+     global _whisper_model, _whisper_force_cpu
+     try:
+-        return _run_whisper_once(media_path, **params)
++        return _run_whisper_spanned(media_path, **params)
+     except RuntimeError as e:
+         if _whisper_force_cpu or "cuda" not in str(e).lower():
+             raise
+@@ -223,9 +313,51 @@ def run_whisper_transcription(media_path, **params):
+         _whisper_force_cpu = True
+         with _whisper_lock:
+             _whisper_model = None  # drop the GPU model to release its VRAM
++        return _run_whisper_spanned(media_path, **params)
++
++
++def _run_whisper_spanned(media_path, **params):
++    """Gate-wrapped transcription; spans long audio (see _transcribe_spans)."""
++    gate = _ASR_GATE if _whisper_device() != "cpu" else _NULL_GATE
++    with gate:
++        model, _device = _get_whisper_model()
++        from faster_whisper.audio import decode_audio
++        # Only arrays we decoded ourselves can be spanned safely: a caller's
++        # strided/offset view would be cut at the wrong sample indices.
++        audio = None
++        is_path = isinstance(media_path, str)
++        if is_path:
++            duration = _probe_duration(media_path)
++            if duration is not None and duration > _SPAN_MAX_SECONDS:
++                audio = decode_audio(media_path)
++        if audio is not None:
++            segments, language = _transcribe_spans(audio, model, **params)
++            from faster_whisper.transcribe import TranscriptionInfo
++            info = TranscriptionInfo(
++                language=language,
++                language_probability=1.0,
++                duration=duration,
++                duration_after_vad=duration,
++                all_language_probs=None,
++                transcription_options=None,
++                vad_options=None,
++            )
++            return segments, info
+         return _run_whisper_once(media_path, **params)
+ 
+ 
++def _probe_duration(path):
++    """Duration in seconds via ffprobe, or None when it cannot be read."""
++    try:
++        out = subprocess.run(
++            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
++             "-of", "default=noprint_wrappers=1:nokey=1", path],
++            capture_output=True, text=True, timeout=30)
++        return float(out.stdout.strip())
++    except (ValueError, subprocess.SubprocessError, OSError):
++        return None
++
++
+ def _transcribe_with_whisper(media_path):
+     segments, info = run_whisper_transcription(media_path, **WHISPER_TRANSCRIBE_PARAMS)
+ 
