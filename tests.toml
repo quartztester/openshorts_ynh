@@ -3,3 +3,9 @@
 test_format = 1.0
 
 [default]
+
+    # Upgrade tests: last commit of each previous package version.
+
+    test_upgrade_from.7dd6470.name = "2026.10.10~ynh7"
+    test_upgrade_from.7393159.name = "2026.10.07~ynh6"
+    test_upgrade_from.aa94c6b.name = "2026.10.07~ynh5"

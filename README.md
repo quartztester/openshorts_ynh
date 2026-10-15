@@ -66,7 +66,7 @@ YunoHost admin under the app's **Documentation** tab.
 This package is not vanilla upstream; it carries deliberate deltas that
 survive upgrades. When bumping the pinned source commit, re-verify each:
 
-- `patches/main.patch` — long-audio transcription is span-chunked at VAD
+- `doc/main.patch` — long-audio transcription is span-chunked at VAD
   silence gaps (`TRANSCRIBE_SPAN_MINUTES`, default 20). Upstream computes the
   log-Mel spectrogram of the whole file in one STFT call: multi-hour uploads
   peaked at 7–9 GB and the kernel OOM killer killed the service (once taking

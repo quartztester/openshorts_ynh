@@ -15,7 +15,7 @@ TimeoutStopSec=60
 # OOM guard: faster-whisper whole-audio feature extraction could balloon a
 # job to 7-9 GB on multi-hour uploads and the kernel's global OOM killer
 # took down neighboring services (once MariaDB) with it. The bundled patch
-# span-chunks long audio (patches/main.patch), keeping a job ~2.5 GB; this
+# span-chunks long audio (doc/main.patch), keeping a job ~2.5 GB; this
 # cap makes any future regression kill the job, not the server.
 MemoryMax=10G
 MemoryHigh=7G
