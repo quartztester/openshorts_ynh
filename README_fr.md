@@ -15,3 +15,10 @@ Générateur de courtes verticales (shorts) assisté par IA : transcription, dé
 
 - Projet amont : <https://github.com/quartztester/openshorts>
 - Paquet YunoHost : <https://github.com/quartztester/openshorts_ynh>
+
+## Screenshots
+
+![OpenShorts dashboard](./doc/screenshots/dashboard.png)
+![Detected viral moments](./doc/screenshots/clip-results.png)
+![Vertical render studio](./doc/screenshots/render-studio.png)
+

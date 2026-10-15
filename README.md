@@ -74,3 +74,10 @@ survive upgrades. When bumping the pinned source commit, re-verify each:
   (backend + UI label + nginx body size; remember Cloudflare's plan cap
   applies first when proxied), and the key-gate fix so a local
   OpenAI-compatible LLM needs no Gemini/Upload-Post key.
+
+## Screenshots
+
+![OpenShorts dashboard](./doc/screenshots/dashboard.png)
+![Detected viral moments](./doc/screenshots/clip-results.png)
+![Vertical render studio](./doc/screenshots/render-studio.png)
+
