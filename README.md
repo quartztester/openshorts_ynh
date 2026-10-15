@@ -1,8 +1,9 @@
-# OpenShorts for YunoHost
+<h1>
+  <img src="logos/openshorts.png" width="48" alt="OpenShorts logo">
+  OpenShorts for YunoHost
+</h1>
 
-<img src="https://raw.githubusercontent.com/quartztester/openshorts_ynh/main/doc/logo.png" alt="Logo of OpenShorts" title="OpenShorts" style="max-height:40px;" />&nbsp;&nbsp;<img src="https://upload.wikimedia.org/wikipedia/commons/6/61/YunoHost_Logo.png" alt="YunoHost logo" title="YunoHost" style="max-height:40px;" />
-
-![Version](https://img.shields.io/badge/helper-v2.1-green)
+<img src="logos/openshorts.png" alt="Logo of OpenShorts" title="OpenShorts" style="max-height:40px;" />&nbsp;&nbsp;![Version](https://img.shields.io/badge/helper-v2.1-green)
 
 Turn long-form videos (podcasts, webinars, interviews) into vertical 9:16
 shorts with captions — the AI moment picker runs on any OpenAI-compatible LLM
@@ -77,7 +78,7 @@ survive upgrades. When bumping the pinned source commit, re-verify each:
 
 ## Screenshots
 
-![OpenShorts dashboard](./doc/screenshots/dashboard.png)
-![Detected viral moments](./doc/screenshots/clip-results.png)
-![Vertical render studio](./doc/screenshots/render-studio.png)
+![OpenShorts — clip results](./doc/screenshots/clip-results.png)
+![OpenShorts — dashboard](./doc/screenshots/dashboard.png)
+![OpenShorts — render studio](./doc/screenshots/render-studio.png)
 

@@ -1,4 +1,7 @@
-# OpenShorts pour YunoHost
+<h1>
+  <img src="logos/openshorts.png" width="48" alt="OpenShorts logo">
+  OpenShorts pour YunoHost
+</h1>
 
 Générateur de courtes verticales (shorts) assisté par IA : transcription, découpe et sous-titres automatiques. Ce paquet l'exécute en natif (Python + workers systemd), sans Docker.
 
@@ -18,7 +21,7 @@ Générateur de courtes verticales (shorts) assisté par IA : transcription, dé
 
 ## Screenshots
 
-![OpenShorts dashboard](./doc/screenshots/dashboard.png)
-![Detected viral moments](./doc/screenshots/clip-results.png)
-![Vertical render studio](./doc/screenshots/render-studio.png)
+![OpenShorts — clip results](./doc/screenshots/clip-results.png)
+![OpenShorts — dashboard](./doc/screenshots/dashboard.png)
+![OpenShorts — render studio](./doc/screenshots/render-studio.png)
 
