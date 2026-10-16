@@ -8,7 +8,7 @@ source _common.sh
 source /usr/share/yunohost/helpers
 
 #=================================================
-# STOP SERVICES (node_modules and venv are about to be replaced)
+# STOP SERVICES (NODE_MODULES AND VENV ARE ABOUT TO BE REPLACED)
 #=================================================
 
 ynh_systemctl --service="$app" --action=stop
@@ -41,7 +41,7 @@ openshorts_build_frontends
 openshorts_preload_models no
 
 #=================================================
-# CONFIG (re-render from the new package's templates)
+# CONFIG (RE-RENDER FROM THE NEW PACKAGE'S TEMPLATES)
 #=================================================
 
 ynh_script_progression "Adding system configuration..."

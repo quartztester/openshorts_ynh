@@ -1,5 +1,9 @@
 #!/bin/bash
 
+#=================================================
+# COMMON VARIABLES AND CUSTOM HELPERS
+#=================================================
+
 # Shared deployment steps for install/upgrade. Functions read the usual
 # YunoHost globals (app, install_dir, data_dir) plus whisper_model.
 

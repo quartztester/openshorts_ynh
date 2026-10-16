@@ -20,4 +20,8 @@ ynh_backup "$install_dir/env"
 ynh_backup "/etc/systemd/system/$app.service"
 ynh_backup "/etc/systemd/system/$app-render.service"
 
+#=================================================
+# END OF SCRIPT
+#=================================================
+
 ynh_print_info "Backup of $app prepared"
