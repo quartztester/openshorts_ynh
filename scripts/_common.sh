@@ -123,6 +123,8 @@ openshorts_add_config() {
 
 	ynh_config_add_systemd
 	ynh_config_add_systemd --service="$app-render" --template=systemd-render.service
+yunohost service add "$app" --description="OpenShorts backend"
+yunohost service add "$app-render" --description="OpenShorts Remotion render service"
 
 	# nginx (www-data) serves dashboard/dist directly: install_dir is 0750
 	# (app-only) by YunoHost convention, so grant *traverse* (o+x, not o+r) on

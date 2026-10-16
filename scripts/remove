@@ -24,6 +24,8 @@ ynh_safe_rm "$install_dir"
 # REMOVE SYSTEM CONFIGURATIONS
 #=================================================
 
+yunohost service remove "$app" || true
+yunohost service remove "$app-render" || true
 ynh_config_remove_systemd "$app-render"
 ynh_config_remove_systemd "$app"
 ynh_config_remove_nginx

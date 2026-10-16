@@ -72,6 +72,8 @@ chown -R "$app:$app" "$install_dir"
 ynh_restore "$install_dir/env" || true
 ynh_config_add_systemd
 ynh_config_add_systemd --service="$app-render" --template=systemd-render.service
+yunohost service add "$app" --description="OpenShorts backend"
+yunohost service add "$app-render" --description="OpenShorts Remotion render service"
 
 if [ -d "/etc/nginx/conf.d/$domain.d" ]; then
 	# nginx (www-data) serves dashboard/dist directly: the install_dir itself is
