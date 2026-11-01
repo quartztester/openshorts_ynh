@@ -43,12 +43,12 @@ ram.runtime = "2G"
     ask.en = "OpenAI-compatible LLM base URL (optional)"
     help.en = "Any server speaking POST /v1/chat/completions (Ollama, vLLM, OpenRouter...). With this set, the viral-moment picker runs on your model and a Gemini key is optional."
     type = "string"
-    default = ""
+    optional = true
 
     [install.llm_model]
     ask.en = "Model name on that server (optional)"
     type = "string"
-    default = ""
+    optional = true
 
     [install.llm_api_key]
     ask.en = "API key for the LLM server (optional)"
