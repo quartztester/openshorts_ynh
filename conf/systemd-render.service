@@ -30,5 +30,7 @@ ExecStart=__NODEJS_DIR__/node __INSTALL_DIR__/render-service/dist/server.js
  Restart=on-failure
  RestartSec=5
 
+ CapabilityBoundingSet=
+ SystemCallFilter=~@clock @debug @module @mount @obsolete @reboot @swap @cpu-emulation
 [Install]
 WantedBy=multi-user.target

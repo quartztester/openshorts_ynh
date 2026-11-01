@@ -38,5 +38,6 @@ ExecStart=__INSTALL_DIR__/venv/bin/uvicorn app:app --host 127.0.0.1 --port __POR
  Restart=on-failure
  RestartSec=5
 
+ CapabilityBoundingSet=
 [Install]
 WantedBy=multi-user.target
