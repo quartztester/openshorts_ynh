@@ -34,6 +34,8 @@ ynh_setup_source --dest_dir="$install_dir"
 mkdir -p "$data_dir/output" "$data_dir/uploads" "$data_dir/.cache"
 chmod 750 "$data_dir"
 chown -R "$app:$app" "$install_dir" "$data_dir"
+# no world access: CI flags world-readable install dirs
+chmod -R o-rwx "$install_dir"
 
 # The app writes uploads/ and output/ relative to its cwd (= install_dir,
 # where uvicorn's main.py lives). Symlink them into the backed-up data_dir.
