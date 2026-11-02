@@ -84,7 +84,10 @@ ram.runtime = "2G"
 
     [resources.ports]
     main.default = 24682
-    render.default = 3101
+    # no render.default: YunoHost's port-clash check greps settings for
+    # "port:" only and misses port_<name> keys, so a fixed default can be
+    # double-assigned across instances; a random port sidesteps it.
+    [resources.ports.render]
 
     [resources.apt]
         packages = "ffmpeg, python3-venv, fontconfig, fonts-liberation, fonts-noto-core, fonts-noto-color-emoji"
