@@ -20,9 +20,7 @@ ExecStart=__NODEJS_DIR__/node __INSTALL_DIR__/render-service/dist/server.js
  NoNewPrivileges=yes
  PrivateTmp=yes
  ProtectSystem=full
- # NB: no ProtectHome — HOME=__DATA_DIR__ lives under /home/yunohost.app
- # (Remotion headless-browser cache), and no PrivateDevices — headless
- # Chromium wants the real /dev/shm.
+ # no ProtectHome (HOME=__DATA_DIR__ under /home/yunohost.app, Remotion cache); no PrivateDevices (Chromium /dev/shm)
  ProtectKernelTunables=yes
  ProtectControlGroups=yes
  RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
